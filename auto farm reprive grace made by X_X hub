@@ -1,0 +1,682 @@
+-- Grace Roblox Auto Farm with GUI
+-- Improved Reprieve Mode Auto Farm
+-- Credit: (X_X hub)
+
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local CoreGui = game:GetService("CoreGui")
+local TweenService = game:GetService("TweenService")
+local localPlayer = Players.LocalPlayer
+local VirtualUser = game:GetService("VirtualUser")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local workspace = game:GetService("Workspace")
+
+VirtualUser:CaptureController()
+
+-- Configuration
+local Config = {
+    AutoFarm = false,
+    MinXP = 15000,
+    TeleportSpeed = 0.5,
+    UseRandomChoice = true,
+    ShowNotifications = true,
+    AutoReconnect = true,
+    CollectionDelay = 0.1,
+    SafeMode = true
+}
+
+-- Statistics
+local Stats = {
+    BeaconsCollected = 0,
+    RoundsCompleted = 0,
+    TotalXP = 0,
+    SessionTime = 0,
+    StartTime = tick()
+}
+
+-- Helper to copy to clipboard
+local function copyToClipboard(text)
+    if setclipboard then
+        setclipboard(text)
+        return true
+    else
+        return false
+    end
+end
+
+-- Create GUI
+local function createGUI()
+    local ScreenGui = Instance.new("ScreenGui")
+    ScreenGui.Name = "GraceAutoFarmGUI"
+    ScreenGui.ResetOnSpawn = false
+    ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    
+    if gethui then
+        ScreenGui.Parent = gethui()
+    elseif syn and syn.protect_gui then
+        syn.protect_gui(ScreenGui)
+        ScreenGui.Parent = CoreGui
+    else
+        ScreenGui.Parent = CoreGui
+    end
+
+    -- Main Frame
+    local MainFrame = Instance.new("Frame")
+    MainFrame.Name = "MainFrame"
+    MainFrame.Parent = ScreenGui
+    MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+    MainFrame.BorderSizePixel = 0
+    MainFrame.Position = UDim2.new(0.5, -200, 0.5, -250)
+    MainFrame.Size = UDim2.new(0, 400, 0, 500)
+    MainFrame.Active = true
+    MainFrame.Draggable = true
+
+    -- Add corner radius
+    local Corner = Instance.new("UICorner")
+    Corner.CornerRadius = UDim.new(0, 10)
+    Corner.Parent = MainFrame
+
+    -- Shadow effect
+    local Shadow = Instance.new("ImageLabel")
+    Shadow.Name = "Shadow"
+    Shadow.Parent = MainFrame
+    Shadow.BackgroundTransparency = 1
+    Shadow.Position = UDim2.new(0, -15, 0, -15)
+    Shadow.Size = UDim2.new(1, 30, 1, 30)
+    Shadow.ZIndex = 0
+    Shadow.Image = "rbxassetid://6014261993"
+    Shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+    Shadow.ImageTransparency = 0.5
+    Shadow.ScaleType = Enum.ScaleType.Slice
+    Shadow.SliceCenter = Rect.new(49, 49, 450, 450)
+
+    -- Title Bar
+    local TitleBar = Instance.new("Frame")
+    TitleBar.Name = "TitleBar"
+    TitleBar.Parent = MainFrame
+    TitleBar.BackgroundColor3 = Color3.fromRGB(35, 35, 50)
+    TitleBar.BorderSizePixel = 0
+    TitleBar.Size = UDim2.new(1, 0, 0, 40)
+
+    local TitleCorner = Instance.new("UICorner")
+    TitleCorner.CornerRadius = UDim.new(0, 10)
+    TitleCorner.Parent = TitleBar
+
+    local TitleLabel = Instance.new("TextLabel")
+    TitleLabel.Name = "Title"
+    TitleLabel.Parent = TitleBar
+    TitleLabel.BackgroundTransparency = 1
+    TitleLabel.Size = UDim2.new(1, -80, 1, 0)
+    TitleLabel.Font = Enum.Font.GothamBold
+    TitleLabel.Text = "Grace Auto Farm | made by (X_X hub)"  -- Added credit
+    TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    TitleLabel.TextSize = 18
+    TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    TitleLabel.Position = UDim2.new(0, 15, 0, 0)
+
+    -- Close Button
+    local CloseButton = Instance.new("TextButton")
+    CloseButton.Name = "CloseButton"
+    CloseButton.Parent = TitleBar
+    CloseButton.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
+    CloseButton.BorderSizePixel = 0
+    CloseButton.Position = UDim2.new(1, -35, 0.5, -12)
+    CloseButton.Size = UDim2.new(0, 25, 0, 25)
+    CloseButton.Font = Enum.Font.GothamBold
+    CloseButton.Text = "X"
+    CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    CloseButton.TextSize = 14
+
+    local CloseCorner = Instance.new("UICorner")
+    CloseCorner.CornerRadius = UDim.new(0, 5)
+    CloseCorner.Parent = CloseButton
+
+    CloseButton.MouseButton1Click:Connect(function()
+        ScreenGui:Destroy()
+    end)
+
+    -- Minimize Button
+    local MinimizeButton = Instance.new("TextButton")
+    MinimizeButton.Name = "MinimizeButton"
+    MinimizeButton.Parent = TitleBar
+    MinimizeButton.BackgroundColor3 = Color3.fromRGB(255, 165, 0)
+    MinimizeButton.BorderSizePixel = 0
+    MinimizeButton.Position = UDim2.new(1, -65, 0.5, -12)
+    MinimizeButton.Size = UDim2.new(0, 25, 0, 25)
+    MinimizeButton.Font = Enum.Font.GothamBold
+    MinimizeButton.Text = "-"
+    MinimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    MinimizeButton.TextSize = 14
+
+    local MinCorner = Instance.new("UICorner")
+    MinCorner.CornerRadius = UDim.new(0, 5)
+    MinCorner.Parent = MinimizeButton
+
+    local isMinimized = false
+    MinimizeButton.MouseButton1Click:Connect(function()
+        isMinimized = not isMinimized
+        local targetSize = isMinimized and UDim2.new(0, 400, 0, 40) or UDim2.new(0, 400, 0, 500)
+        TweenService:Create(MainFrame, TweenInfo.new(0.3), {Size = targetSize}):Play()
+    end)
+
+    -- Content Frame
+    local ContentFrame = Instance.new("ScrollingFrame")
+    ContentFrame.Name = "ContentFrame"
+    ContentFrame.Parent = MainFrame
+    ContentFrame.BackgroundTransparency = 1
+    ContentFrame.Position = UDim2.new(0, 10, 0, 50)
+    ContentFrame.Size = UDim2.new(1, -20, 1, -60)
+    ContentFrame.CanvasSize = UDim2.new(0, 0, 0, 800)
+    ContentFrame.ScrollBarThickness = 6
+    ContentFrame.BorderSizePixel = 0
+
+    -- Helper function to create sections
+    local yOffset = 10
+    local function createSection(title)
+        local Section = Instance.new("Frame")
+        Section.Name = title
+        Section.Parent = ContentFrame
+        Section.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+        Section.BorderSizePixel = 0
+        Section.Position = UDim2.new(0, 0, 0, yOffset)
+        Section.Size = UDim2.new(1, -10, 0, 30)
+
+        local SectionCorner = Instance.new("UICorner")
+        SectionCorner.CornerRadius = UDim.new(0, 6)
+        SectionCorner.Parent = Section
+
+        local SectionLabel = Instance.new("TextLabel")
+        SectionLabel.Parent = Section
+        SectionLabel.BackgroundTransparency = 1
+        SectionLabel.Size = UDim2.new(1, 0, 1, 0)
+        SectionLabel.Font = Enum.Font.GothamBold
+        SectionLabel.Text = title
+        SectionLabel.TextColor3 = Color3.fromRGB(200, 200, 255)
+        SectionLabel.TextSize = 14
+        SectionLabel.TextXAlignment = Enum.TextXAlignment.Left
+        SectionLabel.Position = UDim2.new(0, 10, 0, 0)
+
+        yOffset = yOffset + 40
+        return Section
+    end
+
+    -- Helper function to create toggle
+    local function createToggle(name, defaultValue, callback)
+        local Toggle = Instance.new("Frame")
+        Toggle.Name = name
+        Toggle.Parent = ContentFrame
+        Toggle.BackgroundColor3 = Color3.fromRGB(35, 35, 50)
+        Toggle.BorderSizePixel = 0
+        Toggle.Position = UDim2.new(0, 0, 0, yOffset)
+        Toggle.Size = UDim2.new(1, -10, 0, 35)
+
+        local ToggleCorner = Instance.new("UICorner")
+        ToggleCorner.CornerRadius = UDim.new(0, 6)
+        ToggleCorner.Parent = Toggle
+
+        local ToggleLabel = Instance.new("TextLabel")
+        ToggleLabel.Parent = Toggle
+        ToggleLabel.BackgroundTransparency = 1
+        ToggleLabel.Position = UDim2.new(0, 10, 0, 0)
+        ToggleLabel.Size = UDim2.new(1, -60, 1, 0)
+        ToggleLabel.Font = Enum.Font.Gotham
+        ToggleLabel.Text = name
+        ToggleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        ToggleLabel.TextSize = 13
+        ToggleLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+        local ToggleButton = Instance.new("TextButton")
+        ToggleButton.Parent = Toggle
+        ToggleButton.BackgroundColor3 = defaultValue and Color3.fromRGB(60, 255, 100) or Color3.fromRGB(80, 80, 100)
+        ToggleButton.BorderSizePixel = 0
+        ToggleButton.Position = UDim2.new(1, -45, 0.5, -12)
+        ToggleButton.Size = UDim2.new(0, 40, 0, 20)
+        ToggleButton.Text = ""
+
+        local ButtonCorner = Instance.new("UICorner")
+        ButtonCorner.CornerRadius = UDim.new(1, 0)
+        ButtonCorner.Parent = ToggleButton
+
+        local Circle = Instance.new("Frame")
+        Circle.Parent = ToggleButton
+        Circle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        Circle.BorderSizePixel = 0
+        Circle.Position = defaultValue and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8)
+        Circle.Size = UDim2.new(0, 16, 0, 16)
+
+        local CircleCorner = Instance.new("UICorner")
+        CircleCorner.CornerRadius = UDim.new(1, 0)
+        CircleCorner.Parent = Circle
+
+        local toggled = defaultValue
+        ToggleButton.MouseButton1Click:Connect(function()
+            toggled = not toggled
+            TweenService:Create(ToggleButton, TweenInfo.new(0.2), {
+                BackgroundColor3 = toggled and Color3.fromRGB(60, 255, 100) or Color3.fromRGB(80, 80, 100)
+            }):Play()
+            TweenService:Create(Circle, TweenInfo.new(0.2), {
+                Position = toggled and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8)
+            }):Play()
+            callback(toggled)
+        end)
+
+        yOffset = yOffset + 40
+        return Toggle
+    end
+
+    -- Helper function to create slider
+    local function createSlider(name, min, max, defaultValue, callback)
+        local Slider = Instance.new("Frame")
+        Slider.Name = name
+        Slider.Parent = ContentFrame
+        Slider.BackgroundColor3 = Color3.fromRGB(35, 35, 50)
+        Slider.BorderSizePixel = 0
+        Slider.Position = UDim2.new(0, 0, 0, yOffset)
+        Slider.Size = UDim2.new(1, -10, 0, 50)
+
+        local SliderCorner = Instance.new("UICorner")
+        SliderCorner.CornerRadius = UDim.new(0, 6)
+        SliderCorner.Parent = Slider
+
+        local SliderLabel = Instance.new("TextLabel")
+        SliderLabel.Parent = Slider
+        SliderLabel.BackgroundTransparency = 1
+        SliderLabel.Position = UDim2.new(0, 10, 0, 5)
+        SliderLabel.Size = UDim2.new(1, -20, 0, 15)
+        SliderLabel.Font = Enum.Font.Gotham
+        SliderLabel.Text = name .. ": " .. defaultValue
+        SliderLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        SliderLabel.TextSize = 13
+        SliderLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+        local SliderBar = Instance.new("Frame")
+        SliderBar.Parent = Slider
+        SliderBar.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
+        SliderBar.BorderSizePixel = 0
+        SliderBar.Position = UDim2.new(0, 10, 0, 28)
+        SliderBar.Size = UDim2.new(1, -20, 0, 12)
+
+        local BarCorner = Instance.new("UICorner")
+        BarCorner.CornerRadius = UDim.new(1, 0)
+        BarCorner.Parent = SliderBar
+
+        local SliderFill = Instance.new("Frame")
+        SliderFill.Parent = SliderBar
+        SliderFill.BackgroundColor3 = Color3.fromRGB(100, 150, 255)
+        SliderFill.BorderSizePixel = 0
+        SliderFill.Size = UDim2.new((defaultValue - min) / (max - min), 0, 1, 0)
+
+        local FillCorner = Instance.new("UICorner")
+        FillCorner.CornerRadius = UDim.new(1, 0)
+        FillCorner.Parent = SliderFill
+
+        local dragging = false
+        local function updateSlider(input)
+            local relativeX = math.clamp((input.Position.X - SliderBar.AbsolutePosition.X) / SliderBar.AbsoluteSize.X, 0, 1)
+            local value = math.floor(min + (max - min) * relativeX)
+            SliderFill.Size = UDim2.new(relativeX, 0, 1, 0)
+            SliderLabel.Text = name .. ": " .. value
+            callback(value)
+        end
+
+        SliderBar.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                dragging = true
+                updateSlider(input)
+            end
+        end)
+
+        SliderBar.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                dragging = false
+            end
+        end)
+
+        UserInputService.InputChanged:Connect(function(input)
+            if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+                updateSlider(input)
+            end
+        end)
+
+        yOffset = yOffset + 55
+        return Slider
+    end
+
+    -- Create sections and controls
+    createSection("🎯 Main Controls")
+    
+    createToggle("Auto Farm", Config.AutoFarm, function(value)
+        Config.AutoFarm = value
+    end)
+
+    createToggle("Safe Mode", Config.SafeMode, function(value)
+        Config.SafeMode = value
+    end)
+
+    createToggle("Show Notifications", Config.ShowNotifications, function(value)
+        Config.ShowNotifications = value
+    end)
+
+    createSection("⚙️ Settings")
+
+    createSlider("Minimum XP", 5000, 30000, Config.MinXP, function(value)
+        Config.MinXP = value
+    end)
+
+    createSlider("Teleport Speed", 1, 10, Config.TeleportSpeed * 10, function(value)
+        Config.TeleportSpeed = value / 10
+    end)
+
+    createSlider("Collection Delay (ms)", 10, 500, Config.CollectionDelay * 1000, function(value)
+        Config.CollectionDelay = value / 1000
+    end)
+
+    createSection("📊 Statistics")
+
+    -- Stats display
+    local StatsFrame = Instance.new("Frame")
+    StatsFrame.Name = "StatsFrame"
+    StatsFrame.Parent = ContentFrame
+    StatsFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 50)
+    StatsFrame.BorderSizePixel = 0
+    StatsFrame.Position = UDim2.new(0, 0, 0, yOffset)
+    StatsFrame.Size = UDim2.new(1, -10, 0, 120)
+
+    local StatsCorner = Instance.new("UICorner")
+    StatsCorner.CornerRadius = UDim.new(0, 6)
+    StatsCorner.Parent = StatsFrame
+
+    local StatsText = Instance.new("TextLabel")
+    StatsText.Name = "StatsText"
+    StatsText.Parent = StatsFrame
+    StatsText.BackgroundTransparency = 1
+    StatsText.Position = UDim2.new(0, 10, 0, 10)
+    StatsText.Size = UDim2.new(1, -20, 1, -20)
+    StatsText.Font = Enum.Font.Code
+    StatsText.Text = "Loading..."
+    StatsText.TextColor3 = Color3.fromRGB(200, 255, 200)
+    StatsText.TextSize = 12
+    StatsText.TextXAlignment = Enum.TextXAlignment.Left
+    StatsText.TextYAlignment = Enum.TextYAlignment.Top
+
+    -- Update stats display
+    spawn(function()
+        while true do
+            wait(1)
+            Stats.SessionTime = tick() - Stats.StartTime
+            local hours = math.floor(Stats.SessionTime / 3600)
+            local minutes = math.floor((Stats.SessionTime % 3600) / 60)
+            local seconds = math.floor(Stats.SessionTime % 60)
+            
+            StatsText.Text = string.format(
+                "Beacons Collected: %d\nRounds Completed: %d\nTotal XP Gained: %d\nSession Time: %02d:%02d:%02d\nStatus: %s",
+                Stats.BeaconsCollected,
+                Stats.RoundsCompleted,
+                Stats.TotalXP,
+                hours, minutes, seconds,
+                Config.AutoFarm and "Running" or "Stopped"
+            )
+        end
+    end)
+
+    return ScreenGui
+end
+
+-- Notification system
+local function notify(title, text, duration)
+    if not Config.ShowNotifications then return end
+    
+    game.StarterGui:SetCore("SendNotification", {
+        Title = title,
+        Text = text,
+        Duration = duration or 5
+    })
+end
+
+-- Enhanced beacon collection
+local heartbeatConnection
+local function collectBeacons()
+    if not Config.AutoFarm then return end
+    
+    local character = localPlayer.Character
+    if not character then return end
+
+    local hrp = character:FindFirstChild("HumanoidRootPart")
+    local humanoid = character:FindFirstChild("Humanoid")
+    if not hrp or not humanoid or humanoid.Health <= 0 then return end
+
+    local beaconsFolder = workspace:FindFirstChild("Beacons")
+    if not beaconsFolder then 
+        if Config.SafeMode then
+            warn("Beacons folder not found")
+        end
+        return 
+    end
+
+    local beacons = beaconsFolder:GetChildren()
+    if #beacons > 0 then
+        for _, beaconPart in ipairs(beacons) do
+            if not Config.AutoFarm then break end
+            
+            if beaconPart:IsA("BasePart") then
+                -- Smooth teleportation
+                local distance = (hrp.Position - beaconPart.Position).Magnitude
+                if distance > 5 then
+                    hrp.CFrame = beaconPart.CFrame
+                    Stats.BeaconsCollected = Stats.BeaconsCollected + 1
+                end
+                
+                VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.C, false, game)
+                wait(Config.CollectionDelay)
+                VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.C, false, game)
+                RunService.Heartbeat:Wait()
+            end
+        end
+        
+        -- Wait for beacons to be collected
+        repeat 
+            RunService.Heartbeat:Wait() 
+        until #beaconsFolder:GetChildren() == 1 or not Config.AutoFarm
+        
+        wait(3)
+        
+        local guiTimer = localPlayer.PlayerGui:FindFirstChild("TIMER")
+        if not guiTimer then return end
+        
+        local anymoreBtn = guiTimer:FindFirstChild("anymore")
+        if not anymoreBtn then return end
+        anymoreBtn = anymoreBtn:FindFirstChild("y")
+        if not anymoreBtn then return end
+        
+        repeat RunService.Heartbeat:Wait() until anymoreBtn.Visible or not Config.AutoFarm
+        wait(2)
+        
+        local xpLabel = guiTimer:FindFirstChild("willgetyou")
+        if xpLabel then
+            xpLabel = xpLabel:FindFirstChild("xp")
+        end
+        
+        local xpValue = 0
+        if xpLabel then
+            local xpText = xpLabel.Text or ""
+            xpValue = tonumber(xpText:match("(%d+)")) or 0
+            Stats.TotalXP = Stats.TotalXP + xpValue
+        end
+        
+        if xpValue > Config.MinXP then
+            notify("Auto Farm", "XP threshold met: " .. xpValue, 3)
+            
+            local noBtn = guiTimer:FindFirstChild("anymore")
+            if noBtn then noBtn = noBtn:FindFirstChild("n") end
+            if not noBtn then return end
+            
+            repeat RunService.Heartbeat:Wait() until noBtn.Visible or not Config.AutoFarm
+            wait(2)
+            
+            -- Click "No" button
+            local posN = noBtn.AbsolutePosition + noBtn.AbsoluteSize/2
+            local yOffsetN = math.max(4, math.floor(noBtn.AbsoluteSize.Y * 0.4))
+            local moveXN, moveYN = posN.X, posN.Y + yOffsetN
+            
+            VirtualInputManager:SendMouseMoveEvent(moveXN, moveYN, guiTimer)
+            wait(0.5)
+            VirtualInputManager:SendMouseButtonEvent(moveXN, moveYN, 0, true, guiTimer, 0)
+            wait(0.1)
+            VirtualInputManager:SendMouseButtonEvent(moveXN, moveYN, 0, false, guiTimer, 0)
+            
+            -- Confirm
+            local sureBtn = guiTimer:FindFirstChild("sure")
+            if sureBtn then sureBtn = sureBtn:FindFirstChild("y") end
+            if not sureBtn then return end
+            
+            repeat RunService.Heartbeat:Wait() until sureBtn.Visible or not Config.AutoFarm
+            wait(2)
+            
+            local posS = sureBtn.AbsolutePosition + sureBtn.AbsoluteSize/2
+            local yOffsetS = math.max(4, math.floor(sureBtn.AbsoluteSize.Y * 0.4))
+            local moveXS, moveYS = posS.X, posS.Y + yOffsetS
+            
+            VirtualInputManager:SendMouseMoveEvent(moveXS, moveYS, guiTimer)
+            wait(0.5)
+            VirtualInputManager:SendMouseButtonEvent(moveXS, moveYS, 0, true, guiTimer, 0)
+            wait(0.1)
+            VirtualInputManager:SendMouseButtonEvent(moveXS, moveYS, 0, false, guiTimer, 0)
+            
+            Stats.RoundsCompleted = Stats.RoundsCompleted + 1
+        else
+            -- Continue playing
+            local pos = anymoreBtn.AbsolutePosition + anymoreBtn.AbsoluteSize/2
+            local yOffset = math.max(4, math.floor(anymoreBtn.AbsoluteSize.Y * 0.4))
+            local moveX, moveY = pos.X, pos.Y + yOffset
+            
+            VirtualInputManager:SendMouseMoveEvent(moveX, moveY, guiTimer)
+            wait(0.5)
+            VirtualInputManager:SendMouseButtonEvent(moveX, moveY, 0, true, guiTimer, 0)
+            wait(0.1)
+            VirtualInputManager:SendMouseButtonEvent(moveX, moveY, 0, false, guiTimer, 0)
+            wait(2)
+            
+            -- Choose option
+            local choiceGui = guiTimer:FindFirstChild("CHOICE")
+            if not choiceGui then return end
+            
+            local choices = {"RANDOM", "SAME", "TIME"}
+            local visibleChoices = {}
+            
+            for _, name in ipairs(choices) do
+                local btnChoice = choiceGui:FindFirstChild(name)
+                if btnChoice and btnChoice.Visible then
+                    table.insert(visibleChoices, btnChoice)
+                end
+            end
+            
+            if #visibleChoices > 0 then
+                local btnChoice = visibleChoices[math.random(1, #visibleChoices)]
+                local pos2 = btnChoice.AbsolutePosition + btnChoice.AbsoluteSize/2
+                local yOffset2 = math.max(4, math.floor(btnChoice.AbsoluteSize.Y * 0.6))
+                local moveX2, moveY2 = pos2.X, pos2.Y + yOffset2
+                
+                VirtualInputManager:SendMouseMoveEvent(moveX2, moveY2, guiTimer)
+                wait(0.5)
+                VirtualInputManager:SendMouseButtonEvent(moveX2, moveY2, 0, true, guiTimer, 0)
+                wait(0.1)
+                VirtualInputManager:SendMouseButtonEvent(moveX2, moveY2, 0, false, guiTimer, 0)
+            end
+        end
+    end
+end
+
+-- Create floating button that copies Discord invite
+local function createDiscordButton()
+    local buttonGui = Instance.new("ScreenGui")
+    buttonGui.Name = "DiscordInviteButton"
+    buttonGui.ResetOnSpawn = false
+    buttonGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+    if gethui then
+        buttonGui.Parent = gethui()
+    elseif syn and syn.protect_gui then
+        syn.protect_gui(buttonGui)
+        buttonGui.Parent = CoreGui
+    else
+        buttonGui.Parent = CoreGui
+    end
+
+    local buttonFrame = Instance.new("Frame")
+    buttonFrame.Name = "ButtonFrame"
+    buttonFrame.Parent = buttonGui
+    buttonFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+    buttonFrame.BorderSizePixel = 0
+    buttonFrame.Position = UDim2.new(0.85, 0, 0.1, 0) -- top right corner
+    buttonFrame.Size = UDim2.new(0, 180, 0, 40)
+    buttonFrame.BackgroundTransparency = 0.2
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = buttonFrame
+
+    local button = Instance.new("TextButton")
+    button.Name = "CopyButton"
+    button.Parent = buttonFrame
+    button.BackgroundColor3 = Color3.fromRGB(88, 101, 242) -- Discord blurple
+    button.BorderSizePixel = 0
+    button.Size = UDim2.new(1, 0, 1, 0)
+    button.Font = Enum.Font.GothamBold
+    button.Text = "Join Discord"
+    button.TextColor3 = Color3.fromRGB(255, 255, 255)
+    button.TextSize = 14
+
+    local btnCorner = Instance.new("UICorner")
+    btnCorner.CornerRadius = UDim.new(0, 8)
+    btnCorner.Parent = button
+
+    -- Fade-in animation
+    buttonFrame.BackgroundTransparency = 1
+    TweenService:Create(buttonFrame, TweenInfo.new(0.5), {BackgroundTransparency = 0.2}):Play()
+
+    local link = "https://discord.gg/Se6g9E4JDc"
+
+    button.MouseButton1Click:Connect(function()
+        local success = copyToClipboard(link)
+        if success then
+            notify("Discord Invite", "Link copied to clipboard!", 3)
+        else
+            notify("Discord Invite", "Your executor does not support setclipboard.\nLink: " .. link, 5)
+        end
+        -- Destroy the button after click
+        buttonGui:Destroy()
+    end)
+
+    -- Auto-remove after 10 seconds if not clicked
+    task.delay(10, function()
+        if buttonGui and buttonGui.Parent then
+            buttonGui:Destroy()
+        end
+    end)
+end
+
+-- Initialize
+VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.LeftAlt, false, game)
+wait(0.5)
+VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.LeftAlt, false, game)
+
+createGUI()
+createDiscordButton()  -- Show the Discord invite button
+notify("Grace Auto Farm", "Script loaded! Toggle Auto Farm to start.\nMade by (X_X hub)", 5)
+
+-- Main loop
+heartbeatConnection = RunService.Heartbeat:Connect(function()
+    if Config.AutoFarm then
+        pcall(collectBeacons)
+    end
+end)
+
+-- Cleanup on player leaving
+Players.PlayerRemoving:Connect(function(player)
+    if player == localPlayer then
+        if heartbeatConnection then
+            heartbeatConnection:Disconnect()
+        end
+    end
+end)
